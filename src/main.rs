@@ -1,5 +1,4 @@
 use std::io::{stdin, Write, stdout};
-use lifx::commands::list_lights;
 use log::debug;
 use system_config::Config;
 
@@ -41,7 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    list_lights(&api_key).await?;
+    let lifx_commands: lifx::commands::LifxCommands = lifx::commands::LifxCommands::new(&api_key);
+
+    lifx_commands.list_lights().await?;
 
     Ok(())
 }
