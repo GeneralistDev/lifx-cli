@@ -8,26 +8,26 @@ const LIFX_URL_TEMPLATE: &str = "https://api.lifx.com/v1";
 
 pub struct LifxCommands {
     token: String,
+    display_raw: bool,
 }
 
 impl LifxCommands {
-    pub fn new(key: &str) -> LifxCommands {
-        LifxCommands { token: String::from(key) }
+    pub fn new(key: &str, raw: &bool) -> LifxCommands {
+        LifxCommands { token: String::from(key), display_raw: *raw }
     }
 
     /*
         https://api.developer.lifx.com/docs/list-lights
     */
-    pub async fn list_lights(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut table = Table::new();
-        table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    pub async fn list_lights(&self, selector: &String) -> Result<(), Box<dyn std::error::Error>> {
+        
         
         let client = Client::new();
 
         log::debug!("Sending request");
 
         let res: reqwest::Response = client
-            .get(format!("{}{}", LIFX_URL_TEMPLATE, "/lights/all"))
+            .get(format!("{}{}", LIFX_URL_TEMPLATE, "/lights/".to_owned() + selector))
             .bearer_auth(&self.token)
             .send()
             .await?;
@@ -38,22 +38,27 @@ impl LifxCommands {
 
         log::debug!("{}", serde_json::to_string_pretty(&lights)?);
 
-        println!("All your lights...");
-
-        table.add_row(row![
-            b -> "ID",
-            b -> "Label",
-            b -> "Connected",
-            b -> "Power",
-            b -> "Brightness",
-            b -> "Color",
-        ]);
-
-        for light in lights {
-            light.serialize_row(&mut table);
+        if self.display_raw {
+            println!("{}", serde_json::to_string_pretty(&lights)?);
+        } else {
+            let mut table = Table::new();
+            table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    
+            table.add_row(row![
+                b -> "ID",
+                b -> "Label",
+                b -> "Connected",
+                b -> "Power",
+                b -> "Brightness",
+                b -> "Color",
+            ]);
+    
+            for light in lights {
+                light.serialize_row(&mut table);
+            }
+    
+            table.printstd();
         }
-
-        table.printstd();
 
         Ok(())
     }
