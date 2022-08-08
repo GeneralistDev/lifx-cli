@@ -12,7 +12,12 @@
                 "args": [
                     "run",
                     "--bin=lifx-cli",
-                    "--package=lifx-cli"
+                    "--package=lifx-cli",
+                    "--",
+                    "lights",
+                    "--selector",
+                    "label:Reading",
+                    "toggle"
                 ],
                 "filter": {
                     "name": "lifx-cli",

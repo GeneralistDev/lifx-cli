@@ -1,10 +1,10 @@
 use lifx_cli::SerializeToTable;
-use prettytable::Table;
+use prettytable::{Table, format};
 use ansi_rgb::Background;
 use rgb::RGB8;
 use hsl::HSL;
 
-use super::types::ListLightResponse;
+use super::types::{ListLightResponse, ToggledLightsResponse};
 
 impl SerializeToTable for ListLightResponse {
     fn serialize_row(&self, table: &mut Table) {
@@ -24,5 +24,27 @@ impl SerializeToTable for ListLightResponse {
             format!("{}%", self.brightness * 100.0),
             "     ".bg(RGB8::new(r, g, b)),
         ]);
+    }
+}
+
+impl SerializeToTable for ToggledLightsResponse {
+    fn serialize_row(&self, table: &mut Table) {
+        table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
+        table.add_row(row![
+            b -> "ID",
+            b -> "Status",
+            b -> "Label",
+            b -> "Power",
+        ]);
+
+        for result in &self.results {
+            table.add_row(row![
+                result.id,
+                result.status,
+                result.label,
+                result.power,
+            ]);
+        }
     }
 }

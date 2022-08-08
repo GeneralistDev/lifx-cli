@@ -2,6 +2,8 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use optional_field::{Field, serde_optional_fields};
 
+// region: ListLightResponse
+
 #[serde_optional_fields]
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,3 +82,24 @@ pub struct Capabilities {
     #[serde(rename = "max_kelvin")]
     pub max_kelvin: f64,
 }
+
+// endregion: ListLightResponse
+
+// region: ToggledLightsResponse
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToggledLightsResponse {
+    pub results: Vec<Result>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Result {
+    pub id: String,
+    pub label: String,
+    pub status: String,
+    pub power: String,
+}
+
+// endregion: ToggledLightsResponse

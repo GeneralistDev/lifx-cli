@@ -32,11 +32,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .subcommand(
                     Command::new("list")
                         .about("List lights")
+                )
+                .subcommand(
+                    Command::new("toggle")
+                        .about("Toggle a light")
                         .arg(
-                            arg!(-s --selector "Selector to filter lights. Omit to see all lights")
-                                .takes_value(true)
-                                .help("See https://api.developer.lifx.com/docs/selectors for selector documentation")
+                            arg!(-d --duration "The time in seconds to spend perfoming the power toggle")
+                                .default_value("0.0")
                         )
+                )
+                .arg(
+                    arg!(-s --selector "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
+                        .default_value("all")
                 )
         )
         .arg(
@@ -79,15 +86,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let display_raw: bool = matches.contains_id("raw");
+    
 
     if let Some(matches) = matches.subcommand_matches("lights") {
+        debug!("lights module");
+
         let lifx_commands: lifx::commands::LifxCommands = lifx::commands::LifxCommands::new(&api_key, &display_raw);
+        
+        let selector = matches.get_one::<String>("selector").unwrap();
 
-        if let Some(matches) = matches.subcommand_matches("list") {
-            let default_selector = String::from("all");
-            let selector = matches.get_one::<String>("selector").unwrap_or(&default_selector);
+        debug!("selector: {}", selector);
 
+        if let Some(_) = matches.subcommand_matches("list") {
+            debug!("list command");
             lifx_commands.list_lights(selector).await?;
+        }
+
+        if let Some(matches) = matches.subcommand_matches("toggle") {
+            debug!("toggle command");
+            let duration = matches.value_of_t::<f64>("duration").ok();
+            lifx_commands.toggle_lights(selector, duration).await?;
         }
     }
 
