@@ -41,8 +41,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .default_value("0.0")
                         )
                 )
+                .subcommand(
+                    Command::new("set-state")
+                        .about("Set state of light/s")
+                        .arg(
+                            arg!(-d --duration [DURATION] "The time in seconds to make the state change over")
+                                .default_value("0.0")
+                        )
+                        .arg(
+                            arg!(-p --power [POWER] "Power state (on/off)")
+                        )
+                        .arg(
+                            arg!(-c --color [COLOR] "Color of the light. See https://api.developer.lifx.com/v1/docs/colors for color documentation")
+                        )
+                        .arg(
+                            arg!(-b --brightness [BRIGHTNESS] "Brightness between 0.0 and 1.0")
+                        )
+                        .arg(
+                            arg!(-i --infrared [INFRARED] "The maximum brightness of the infrared channel from 0.0 to 1.0")
+                        )
+                        .arg(
+                            arg!(-f --fast "Execute the query fast, without initial state checks and wait for no results.")
+                        )
+                )
                 .arg(
-                    arg!(-s --selector "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
+                    arg!(-s --selector <SELECTOR> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
                         .default_value("all")
                 )
         )
@@ -86,13 +109,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let display_raw: bool = matches.contains_id("raw");
-    
 
     if let Some(matches) = matches.subcommand_matches("lights") {
         debug!("lights module");
 
         let lifx_commands: lifx::commands::LifxCommands = lifx::commands::LifxCommands::new(&api_key, &display_raw);
-        
+
         let selector = matches.get_one::<String>("selector").unwrap();
 
         debug!("selector: {}", selector);
@@ -106,6 +128,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             debug!("toggle command");
             let duration = matches.value_of_t::<f64>("duration").ok();
             lifx_commands.toggle_lights(selector, duration).await?;
+        }
+
+        if let Some(matches) = matches.subcommand_matches("set-state") {
+            debug!("set-state command");
+            let duration = matches.value_of_t::<f64>("duration").ok();
+            let brightness = matches.value_of_t::<f64>("brightness").ok();
+            let infrared = matches.value_of_t::<f64>("infrared").ok();
+            let fast = matches.value_of_t::<bool>("fast").ok();
+            let power = matches.get_one::<String>("power");
+            let color = matches.get_one::<String>("color");
+
+            lifx_commands.set_state(selector, power, color, brightness, duration, infrared, fast).await?;
         }
     }
 

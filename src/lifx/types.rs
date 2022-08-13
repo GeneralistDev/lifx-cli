@@ -96,10 +96,38 @@ pub struct ToggledLightsResponse {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Result {
-    pub id: String,
-    pub label: String,
-    pub status: String,
-    pub power: String,
+    pub id: Option<String>,
+    pub label: Option<String>,
+    pub status: Option<String>,
+    pub power: Option<String>,
 }
 
 // endregion: ToggledLightsResponse
+
+// region: SetStateResponse
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetStateResponse {
+    pub results: Vec<Result>,
+}
+
+// endregion: SetStateResponse
+
+// region: InvalidColorResponse
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvalidColorResponse {
+    pub error: String,
+    pub errors: Vec<Error>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Error {
+    pub field: String,
+    pub message: Vec<String>,
+}
+
+// endregion: InvalidColorResponse
