@@ -57,7 +57,6 @@ impl SerializeToTable for SetStateResponse {
             b -> "ID",
             b -> "Status",
             b -> "Label",
-            b -> "Power",
         ]);
 
         for result in &self.results {
@@ -65,7 +64,6 @@ impl SerializeToTable for SetStateResponse {
                 result.id.as_ref().unwrap_or(&"".to_owned()),
                 result.status.as_ref().unwrap_or(&"".to_owned()),
                 result.label.as_ref().unwrap_or(&"".to_owned()),
-                result.power.as_ref().unwrap_or(&"".to_owned()),
             ]);
         }
     }

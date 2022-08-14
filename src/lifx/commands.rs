@@ -6,6 +6,7 @@ use lifx_cli::SerializeToTable;
 use log::debug;
 use prettytable::{Table, format};
 use reqwest::{Client, StatusCode};
+use serde_json::{Map, Value, Number};
 use urlencoding::encode;
 
 const LIFX_URL_TEMPLATE: &str = "https://api.lifx.com/v1";
@@ -113,9 +114,7 @@ impl LifxCommands {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let client = Client::new();
 
-        let (brightness_val, duration_val, infrared_val, fast_val) : (String, String, String, String);
-
-        let mut body = HashMap::new();
+        let mut body = Map::new();
 
         // Validate the color if that's provided
         if let Some(color) = color {
@@ -137,13 +136,13 @@ impl LifxCommands {
                 }
             }
 
-            body.insert("color", color);
+            body.insert("color".to_string(), Value::String(color.to_string()));
         };
 
         if let Some(power) = power {
             match &power[..] {
                 "on" | "off" => {
-                    body.insert("power", power);
+                    body.insert("power".to_string(), Value::String(power.to_string()));
                 },
                 _ => {
                     println!("'power' should either be 'on' or 'off'");
@@ -158,9 +157,7 @@ impl LifxCommands {
                 return Ok(());
             }
 
-            brightness_val = brightness.to_string();
-
-            body.insert("brightness", &brightness_val);
+            body.insert("brightness".to_string(), Value::Number(Number::from_f64(brightness).unwrap()));
         }
 
         if let Some(duration) = duration {
@@ -169,9 +166,7 @@ impl LifxCommands {
                 return Ok(());
             }
 
-            duration_val = duration.to_string();
-
-            body.insert("duration", &duration_val);
+            body.insert("duration".to_string(), Value::Number(Number::from_f64(duration).unwrap()));
         }
 
         if let Some(infrared) = infrared {
@@ -180,15 +175,11 @@ impl LifxCommands {
                 return Ok(());
             }
 
-            infrared_val = infrared.to_string();
-
-            body.insert("infrared", &infrared_val);
+            body.insert("infrared".to_string(), Value::Number(Number::from_f64(infrared).unwrap()));
         }
 
         if let Some(fast) = fast {
-            fast_val = fast.to_string();
-
-            body.insert("fast", &fast_val);
+            body.insert("fast".to_string(), Value::Bool(fast));
         }
 
         let res: reqwest::Response = client
