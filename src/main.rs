@@ -1,7 +1,9 @@
-use std::{io::{stdin, Write, stdout}};
+use std::{io::{stdin, Write, stdout}, net::{SocketAddr, Ipv4Addr, IpAddr}};
+
 use clap::{command, arg, Command, AppSettings};
 use log::debug;
 use system_config::Config;
+use crate::lifx::lan::{LifxPacket::GetService, LifxPacket::SetPower, StateServiceResponse, SetLightPowerPayload};
 
 #[macro_use] extern crate prettytable;
 mod lifx;
@@ -45,28 +47,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Command::new("set-state")
                         .about("Set state of light/s")
                         .arg(
-                            arg!(-d --duration [DURATION] "The time in seconds to make the state change over")
+                            arg!(-d --duration [duration] "The time in seconds to make the state change over")
                                 .default_value("0.0")
                         )
                         .arg(
-                            arg!(-p --power [POWER] "Power state (on/off)")
+                            arg!(-p --power [power] "Power state (on/off)")
                         )
                         .arg(
-                            arg!(-c --color [COLOR] "Color of the light. See https://api.developer.lifx.com/v1/docs/colors for color documentation")
+                            arg!(-c --color [color] "Color of the light. See https://api.developer.lifx.com/v1/docs/colors for color documentation")
                         )
                         .arg(
-                            arg!(-b --brightness [BRIGHTNESS] "Brightness between 0.0 and 1.0")
+                            arg!(-b --brightness [brightness] "Brightness between 0.0 and 1.0")
                         )
                         .arg(
-                            arg!(-i --infrared [INFRARED] "The maximum brightness of the infrared channel from 0.0 to 1.0")
+                            arg!(-i --infrared [infrared] "The maximum brightness of the infrared channel from 0.0 to 1.0")
                         )
                         .arg(
                             arg!(-f --fast "Execute the query fast, without initial state checks and wait for no results.")
                         )
                 )
                 .arg(
-                    arg!(-s --selector <SELECTOR> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
+                    arg!(-s --selector <selector> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
                         .default_value("all")
+                )
+        )
+        .subcommand(
+            Command::new("lan")
+                .about("UDP LAN commands")
+                .subcommand(
+                    Command::new("discover")
+                        .about("Discover devices on network")
+                )
+                .subcommand(
+                    Command::new("power")
+                    .about("Manage light power")
+                    .arg(
+                        arg!(<state> "on/off")
+                    )
+                )
+                .arg(
+                    arg!(-i --ip [IP_Address] "The IP Address of the device to target for non-broadcast commands and queries")
                 )
         )
         .arg(
@@ -140,6 +160,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let color = matches.get_one::<String>("color");
 
             lifx_commands.set_state(selector, power, color, brightness, duration, infrared, fast).await?;
+        }
+    }
+
+    if let Some(matches) = matches.subcommand_matches("lan") {
+        let lan_service = lifx::lan_service::LanService::new();
+
+        let target_address = matches.get_one::<String>("ip");
+
+        if let Some(_) = matches.subcommand_matches("discover") {
+            let (data, ip_addr) = lan_service.broadcast_query(GetService, None).expect("Not to fail");
+
+            let result = bincode::deserialize::<StateServiceResponse>(&data).unwrap();
+            
+            println!("Status: {:?}", result);
+            println!("IP Address: {:?}", ip_addr);
+        }
+
+        if let Some(matches) = matches.subcommand_matches("power") {
+            let power_state = matches.get_one::<String>("state").expect("Power state (on/off) is required");
+
+            let power_payload = SetLightPowerPayload::new(power_state == "on", 0);
+
+            let ipv4: Ipv4Addr = target_address.expect("Target address is required for this command")
+                .parse()
+                .expect("Unable to parse socket address");
+
+            let addr = SocketAddr::new(IpAddr::V4(ipv4), 56700);
+
+            lan_service.send_command(addr, SetPower, Box::new(power_payload));
         }
     }
 
