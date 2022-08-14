@@ -1,4 +1,4 @@
-use std::{io::{stdin, Write, stdout}};
+use std::{io::{stdin, Write, stdout}, net::UdpSocket};
 use clap::{command, arg, Command, AppSettings};
 use log::debug;
 use system_config::Config;
@@ -68,6 +68,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     arg!(-s --selector <SELECTOR> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
                         .default_value("all")
                 )
+        )
+        .subcommand(
+            Command::new("lan")
+                .about("UDP LAN commands")
         )
         .arg(
             arg!(-r --raw "Display raw json response data instead of tables")
@@ -141,6 +145,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             lifx_commands.set_state(selector, power, color, brightness, duration, infrared, fast).await?;
         }
+    }
+
+    if let Some(_) = matches.subcommand_matches("lan") {
+        // TODO: Refactor UDP code out into reusable generic function
+        debug!("LAN command test");
+
+        let header = lifx::lan::Header::new(2, 2);
+
+        let encoded_header: Vec<u8> = bincode::serialize(&header).unwrap();
+
+        // let set_color_payload = lifx::lan::SetColorPayload {
+        //     reserved1: 0,
+        //     hue: 21845,
+        //     saturation: 65535,
+        //     brightness: 65535,
+        //     kelvin: 3500,
+        //     duration: 0,
+        // };
+
+        // let mut encoded_payload: Vec<u8> = bincode::serialize(&set_color_payload).unwrap();
+
+        // encoded_header.append(&mut encoded_payload);
+
+        for x in &encoded_header {
+            print!("{:08b} ", x);
+        }
+
+        println!("");
+
+        let socket = UdpSocket::bind("0.0.0.0:56701")?;
+
+        socket.set_broadcast(true).expect("could not set socket to broadcast");
+
+        socket.send_to(&encoded_header.as_slice(), "255.255.255.255:56700").expect("failed to send message");
+
+        let mut buffer: [u8; 5] = [0; 5];
+
+        let (number_of_bytes, src_addr) = socket.recv_from(&mut buffer).expect("no data received");
+        println!("{:?}", number_of_bytes);
+        println!("{:?}", src_addr);
+
+        // let decoded = bincode::deserialize::<lifx::lan::StateServiceResponse>(&buffer);
+
+        // println!("{:?}", decoded);
+
+        println!("Turning off light");
+
+        let power_payload = lifx::lan::SetLightPowerPayload::new(true, 0);
+
+        let header = lifx::lan::Header::new(3, 117);
+
+        let mut encoded_header: Vec<u8> = bincode::serialize(&header).unwrap();
+        
+        let mut encoded_power_payload: Vec<u8> = bincode::serialize(&power_payload).unwrap();
+
+        encoded_header.append(&mut encoded_power_payload);
+
+        socket.send_to(&encoded_header, src_addr).expect("could not send command");
     }
 
     Ok(())
