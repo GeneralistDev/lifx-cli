@@ -1,7 +1,9 @@
-use std::{io::{stdin, Write, stdout}, net::UdpSocket};
+use std::{io::{stdin, Write, stdout}, net::{SocketAddr, Ipv4Addr, IpAddr}};
+
 use clap::{command, arg, Command, AppSettings};
 use log::debug;
 use system_config::Config;
+use crate::lifx::lan::{LifxPacket::GetService, LifxPacket::SetPower, StateServiceResponse, SetLightPowerPayload};
 
 #[macro_use] extern crate prettytable;
 mod lifx;
@@ -45,33 +47,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Command::new("set-state")
                         .about("Set state of light/s")
                         .arg(
-                            arg!(-d --duration [DURATION] "The time in seconds to make the state change over")
+                            arg!(-d --duration [duration] "The time in seconds to make the state change over")
                                 .default_value("0.0")
                         )
                         .arg(
-                            arg!(-p --power [POWER] "Power state (on/off)")
+                            arg!(-p --power [power] "Power state (on/off)")
                         )
                         .arg(
-                            arg!(-c --color [COLOR] "Color of the light. See https://api.developer.lifx.com/v1/docs/colors for color documentation")
+                            arg!(-c --color [color] "Color of the light. See https://api.developer.lifx.com/v1/docs/colors for color documentation")
                         )
                         .arg(
-                            arg!(-b --brightness [BRIGHTNESS] "Brightness between 0.0 and 1.0")
+                            arg!(-b --brightness [brightness] "Brightness between 0.0 and 1.0")
                         )
                         .arg(
-                            arg!(-i --infrared [INFRARED] "The maximum brightness of the infrared channel from 0.0 to 1.0")
+                            arg!(-i --infrared [infrared] "The maximum brightness of the infrared channel from 0.0 to 1.0")
                         )
                         .arg(
                             arg!(-f --fast "Execute the query fast, without initial state checks and wait for no results.")
                         )
                 )
                 .arg(
-                    arg!(-s --selector <SELECTOR> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
+                    arg!(-s --selector <selector> "Selector to filter lights. Omit to affect all lights. See https://api.developer.lifx.com/docs/selectors for selector documentation")
                         .default_value("all")
                 )
         )
         .subcommand(
             Command::new("lan")
                 .about("UDP LAN commands")
+                .subcommand(
+                    Command::new("discover")
+                        .about("Discover devices on network")
+                )
+                .subcommand(
+                    Command::new("power")
+                    .about("Manage light power")
+                    .arg(
+                        arg!(<state> "on/off")
+                    )
+                )
+                .arg(
+                    arg!(-i --ip [IP_Address] "The IP Address of the device to target for non-broadcast commands and queries")
+                )
         )
         .arg(
             arg!(-r --raw "Display raw json response data instead of tables")
@@ -147,62 +163,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(_) = matches.subcommand_matches("lan") {
-        // TODO: Refactor UDP code out into reusable generic function
-        debug!("LAN command test");
+    if let Some(matches) = matches.subcommand_matches("lan") {
+        let lan_service = lifx::lan_service::LanService::new();
 
-        let header = lifx::lan::Header::new(2, 2);
+        let target_address = matches.get_one::<String>("ip");
 
-        let encoded_header: Vec<u8> = bincode::serialize(&header).unwrap();
+        if let Some(_) = matches.subcommand_matches("discover") {
+            let (data, ip_addr) = lan_service.broadcast_query(GetService, None).expect("Not to fail");
 
-        // let set_color_payload = lifx::lan::SetColorPayload {
-        //     reserved1: 0,
-        //     hue: 21845,
-        //     saturation: 65535,
-        //     brightness: 65535,
-        //     kelvin: 3500,
-        //     duration: 0,
-        // };
-
-        // let mut encoded_payload: Vec<u8> = bincode::serialize(&set_color_payload).unwrap();
-
-        // encoded_header.append(&mut encoded_payload);
-
-        for x in &encoded_header {
-            print!("{:08b} ", x);
+            let result = bincode::deserialize::<StateServiceResponse>(&data).unwrap();
+            
+            println!("Status: {:?}", result);
+            println!("IP Address: {:?}", ip_addr);
         }
 
-        println!("");
+        if let Some(matches) = matches.subcommand_matches("power") {
+            let power_state = matches.get_one::<String>("state").expect("Power state (on/off) is required");
 
-        let socket = UdpSocket::bind("0.0.0.0:56701")?;
+            let power_payload = SetLightPowerPayload::new(power_state == "on", 0);
 
-        socket.set_broadcast(true).expect("could not set socket to broadcast");
+            let ipv4: Ipv4Addr = target_address.expect("Target address is required for this command")
+                .parse()
+                .expect("Unable to parse socket address");
 
-        socket.send_to(&encoded_header.as_slice(), "255.255.255.255:56700").expect("failed to send message");
+            let addr = SocketAddr::new(IpAddr::V4(ipv4), 56700);
 
-        let mut buffer: [u8; 5] = [0; 5];
-
-        let (number_of_bytes, src_addr) = socket.recv_from(&mut buffer).expect("no data received");
-        println!("{:?}", number_of_bytes);
-        println!("{:?}", src_addr);
-
-        // let decoded = bincode::deserialize::<lifx::lan::StateServiceResponse>(&buffer);
-
-        // println!("{:?}", decoded);
-
-        println!("Turning off light");
-
-        let power_payload = lifx::lan::SetLightPowerPayload::new(true, 0);
-
-        let header = lifx::lan::Header::new(3, 117);
-
-        let mut encoded_header: Vec<u8> = bincode::serialize(&header).unwrap();
-        
-        let mut encoded_power_payload: Vec<u8> = bincode::serialize(&power_payload).unwrap();
-
-        encoded_header.append(&mut encoded_power_payload);
-
-        socket.send_to(&encoded_header, src_addr).expect("could not send command");
+            lan_service.send_command(addr, SetPower, Box::new(power_payload));
+        }
     }
 
     Ok(())
