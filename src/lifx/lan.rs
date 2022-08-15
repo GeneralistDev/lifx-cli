@@ -6,11 +6,6 @@ pub trait BinarySerializable {
     fn serialize(&self) -> Vec<u8>;
 }
 
-/* Serialize from binary to self */
-pub trait BinaryDeserializable {
-    fn deserialize(&self, data: Vec<u8>) -> Self;
-}
-
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Header {
     /* frame */
