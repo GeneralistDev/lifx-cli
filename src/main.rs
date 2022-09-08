@@ -1,9 +1,9 @@
-use std::{io::{stdin, Write, stdout}, net::{SocketAddr, Ipv4Addr, IpAddr}};
+use std::{io::{stdin, Write, stdout}, net::{SocketAddr, Ipv4Addr, IpAddr}, process};
 
 use clap::{command, arg, Command, AppSettings};
 use log::debug;
 use system_config::Config;
-use crate::lifx::lan::{LifxPacket::GetService, LifxPacket::SetPower, StateServiceResponse, SetLightPowerPayload};
+use crate::lifx::lan::{LifxPacket::GetService, LifxPacket::SetPower, LifxPacket::SetColor, StateServiceResponse, SetLightPowerPayload, SetLightColorPayload};
 
 #[macro_use] extern crate prettytable;
 mod lifx;
@@ -83,6 +83,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .about("Manage light power")
                     .arg(
                         arg!(<state> "on/off")
+                    )
+                )
+                .subcommand(
+                    Command::new("color")
+                    .about("Set light color")
+                    .arg(
+                        arg!(-h --hue <hue> "The section of the color spectrum that represents the color of your device. So for example red is 0, green is 120, etc")
+                    )
+                    .arg(
+                        arg!(-s --saturation <saturation> "How strong the color is. So a zero saturation is completely white, whilst full saturation is the full color")
+                    )
+                    .arg(
+                        arg!(-b --brightness <brightness> "How bright the color is. So zero brightness is the same as the device is off, while full brightness be just that.")
+                    )
+                    .arg(
+                        arg!(-k --kelvin <kelvin> "The \"temperature\" when the device has zero saturation. So a higher value is a cooler white (more blue) whereas a lower value is a warmer white (more yellow)")
+                    )
+                    .arg(
+                        arg!(-d --duration <duration> "Duration over which the color should change in milliseconds")
                     )
                 )
                 .arg(
@@ -189,6 +208,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let addr = SocketAddr::new(IpAddr::V4(ipv4), 56700);
 
             lan_service.send_command(addr, SetPower, Box::new(power_payload));
+        }
+
+        if let Some(matches) = matches.subcommand_matches("color") {
+            let hue = matches.value_of_t::<u16>("hue").expect("Hue is required");
+            let saturation = matches.value_of_t::<u16>("saturation").expect("Saturation is required");
+            let brightness = matches.value_of_t::<u16>("brightness").expect("Brightness is required");
+            let kelvin = matches.value_of_t::<u16>("kelvin");
+            let duration = matches.value_of_t::<u32>("duration").unwrap_or(0);
+
+            // Some validation
+            let mut validation_err = false;
+
+            if hue > 360 {
+                print!("Hue should be between 0 and 360");
+                validation_err = true;
+            }
+            if saturation > 1 {
+                print!("Saturation should be between 0 and 1");
+                validation_err = true;
+            }
+            if brightness > 1 {
+                print!("Brightness should be between 0 and 1");
+                validation_err = true;
+            }
+
+            if validation_err {
+                process::exit(1)
+            }
+
+            let hue_param = (((0x10000 as f64 * hue as f64) / 360.0) % 0x10000 as f64).round() as u16;
+            let saturation_param = (0xFFFF as f64 * saturation as f64).round() as u16;
+            let brightness_param = (0xFFFF as f64 * brightness as f64).round() as u16;
+            let kelvin_param = match kelvin {
+                Ok(kelvin) => if saturation_param == 0 { kelvin } else { 0 },
+                _ => 0,
+            };
+
+            let payload = SetLightColorPayload::new(hue_param, saturation_param, brightness_param, kelvin_param, duration);
+
+            let ipv4: Ipv4Addr = target_address.expect("Target address is required for this command")
+                .parse()
+                .expect("Unable to parse socket address");
+
+            let addr = SocketAddr::new(IpAddr::V4(ipv4), 56700);
+
+            lan_service.send_command(addr, SetColor, Box::new(payload));
         }
     }
 

@@ -1,4 +1,4 @@
-use std::{net::{UdpSocket, SocketAddr}, error::Error};
+use std::{net::{UdpSocket, SocketAddr}, error::Error, time::Duration};
 
 use log::debug;
 
@@ -60,6 +60,8 @@ impl LanService {
         encoded_header.append(&mut encoded_payload);
 
         let socket = UdpSocket::bind("0.0.0.0:56701").expect("Could not open UDP socket");
+        debug!("Setting socket timeout to 5 seconds");
+        let _ = socket.set_read_timeout(Some(Duration::new(5, 0)));
         socket.send_to::<SocketAddr>(&encoded_header.as_slice(), ip).expect("failed to send message");
     }
 }

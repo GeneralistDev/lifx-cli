@@ -92,6 +92,29 @@ impl BinarySerializable for SetLightPowerPayload {
         bincode::serialize(self).unwrap()
     }
 }
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct SetLightColorPayload {
+    pub reserved: u8,
+    pub hue: u16,
+    pub saturation: u16,
+    pub brightness: u16,
+    pub kelvin: u16,
+    pub duration: u32,
+}
+
+impl SetLightColorPayload {
+    pub fn new(hue: u16, saturation: u16, brightness: u16, kelvin: u16, duration: u32) -> SetLightColorPayload {
+        SetLightColorPayload { reserved: 0, hue, saturation, brightness, kelvin, duration }
+    }
+}
+
+impl BinarySerializable for SetLightColorPayload {
+    fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self).unwrap()
+    }
+}
+
 #[allow(dead_code)]
 pub enum LifxPacket {
     /*
